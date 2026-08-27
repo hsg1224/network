@@ -1,39 +1,64 @@
-# Web安全学习笔记
+Web安全学习笔记
+从漏洞原理到渗透实战，记录我的安全学习之路。
 
-本仓库包含我学习 DVWA、Burp Suite、Python 自动化脚本等内容的笔记。
+内容概览
+DVWA：SQL注入、XSS、CSRF、文件上传、文件包含、命令注入、CSP绕过、JavaScript Attacks、AES-ECB块移动攻击（含Low/Medium/High难度绕过）
 
-## 目录
-- [DVWA漏洞复现笔记](./DVWA_Learning_Notes.md)
-- [Python脚本](./scripts/)
+Burp Suite：Proxy、Repeater、Intruder（Sniper/Pitchfork/Cluster bomb）、Decoder、Comparer、Grep-Extract
 
-## 环境
-- 靶机：DVWA 1.9
-- 攻击机：Kali Linux
+Python脚本：目录扫描器、SQL注入检测脚本（requests库，携带Cookie）
 
+DC系列靶机：DC-1（Drupalgeddon2 -> SUID提权）、DC-2（WordPress爆破 -> rbash绕过 -> sudo git提权）、DC-3（Joomla SQL注入 -> 内核提权）
 
-## 📚 主要内容
+Linux提权：SUID/SGID、环境变量劫持（LD_PRELOAD/LD_LIBRARY_PATH）、Cron劫持（PATH/通配符）、MySQL UDF、NFS、内核漏洞等10+种手法，已完成TryHackMe Linux PrivEsc全房间
 
-### 1. DVWA 漏洞复现
-涵盖：命令注入、文件上传、SQL注入(普通+盲注)、XSS(反射/存储/DOM)、CSRF、文件包含、不安全的验证码、弱会话ID、CSP绕过、JavaScript Attacks、AES-ECB块移动攻击等。每个漏洞记录 Low/Medium/High 难度的手工利用与绕过方法。
+仓库结构
 
-### 2. Burp Suite 实战
-- Intruder 三种攻击模式（Sniper / Pitchfork / Cluster bomb）
-- Grep - Extract 提取响应特征
-- Decoder / Comparer / Repeater 模块使用
+├── img/                      # 截图存放
+├── notes/                    # 所有学习笔记
+│   ├── 测试.md               # DVWA漏洞复现笔记
+│   ├── DC1/2/3.md            # DC-1/2/3渗透报告
+│   └── Linux-PrivEsc/        # 提权速查表及详细笔记
+├── script/                   # Python脚本
+│   ├── dir_scanner.py        # 目录扫描器
+│   └── sql_inject_check.py   # SQL注入检测脚本
+└── README.md
+技能一览
+Web安全：OWASP Top 10核心漏洞原理与利用
 
-### 3. Python 自动化脚本
-- 目录扫描器：基于字典的目录/文件发现
-- SQL 注入检测脚本：携带 Cookie 发送 payload，通过响应长度判断注入点
+渗透工具：Nmap、SQLMap、WPScan、JoomScan、Burp Suite、Metasploit
 
-### 4. 渗透测试实战
-- **DC-1**：从 Drupalgeddon2 漏洞获得 shell，利用 SUID find 提权至 root，获取 flag。
-- **Linux 提权速查表**：SUID、sudo、Cron、内核漏洞、GTFOBins 查询方法等。
+操作系统：Kali Linux、Linux提权（10+种手法）
 
-## 🛠️ 使用说明
+开发语言：Python（自动化脚本）、Shell、SQL
 
-### 运行 Python 脚本
-```bash
-# 进入脚本目录，激活虚拟环境（如有）
-cd Python_Scripts
-python dir_scanner.py http://target.com dict.txt
-python sql_inject_check.py http://target.com/sqli/ id 1
+报告输出：渗透测试报告撰写（含漏洞描述 + 复现步骤 + 修复建议）
+
+快速开始
+text
+git clone https://github.com/hsg1224/Web-Security-Learning.git
+cd Web-Security-Learning/script
+
+# 目录扫描器
+python dir_scanner.py http://target.com dict.txt -t 20
+
+# SQL注入检测
+python sql_inject_check.py http://target.com/sqli/ id 1 -c "cookie_str"
+依赖安装：pip install requests bs4
+
+学习进度
+[+] DVWA全模块（Low/Medium/High）
+
+[+] DC-1 / DC-2 / DC-3完整渗透
+
+[+] TryHackMe Linux PrivEsc全房间
+
+[-]内网横向移动 / SRC漏洞挖掘（计划中）
+联系我
+GitHub：hsg1224
+
+邮箱：2749884910@qq.com
+
+求职意向：安全服务工程师 / 渗透测试实习生（杭州 / 广州）
+
+本仓库所有内容仅供学习交流使用，请勿用于非法用途。
